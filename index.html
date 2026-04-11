@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeaktheTruth</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f1f5f9;
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* Base Card Styling */
+        .post-it {
+            background-color: #fef9c3;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: grab;
+            user-select: none;
+            border: 1px solid #eab308;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            padding: 0.3rem;
+            border-radius: 4px;
+            z-index: 10;
+        }
+        .post-it:active { cursor: grabbing; }
+
+        .seat-drop-zone {
+            position: relative;
+            z-index: 1;
+            border: 1px dashed #cbd5e1;
+            background-color: #f8fafc;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e1;
+            font-weight: bold;
+            font-size: 2rem;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Expanded Quad Class with 20px horizontal margins */
+        .post-it.is-expanded {
+            position: absolute;
+            width: calc(200% + 0.375rem - 40px) !important; 
+            height: calc(200% + 0.375rem) !important; 
+            z-index: 1000 !important;
+            background-color: #fffde7;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            padding: 1rem;
+            cursor: pointer;
+        }
+
+        /* Quad Anchoring Logic with 20px horizontal offset */
+        .quad-left.is-expanded { left: 20px; }
+        .quad-right.is-expanded { left: calc(-100% - 0.375rem + 20px); }
+        .quad-top.is-expanded { top: 0; }
+        .quad-bottom.is-expanded { top: calc(-100% - 0.375rem); }
+
+        /* Content Toggles */
+        .expanded-only { display: none; }
+        .is-expanded .expanded-only { display: block; flex: 1; overflow: hidden; }
+        .is-expanded .minimal-only { display: none; }
+
+        .is-expanded .expanded-notes {
+            font-size: 1.4rem !important;
+            line-height: 1.4 !important;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+
+        .star-line { color: #ef4444 !important; font-weight: 900; }
+        .under-word { text-decoration: underline; text-underline-offset: 2px; }
+
+        .modal-post-it {
+            background-color: #fef9c3;
+            width: 98vw;
+            max-width: 1600px;
+            height: 96vh; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 2px solid #eab308;
+            padding: 1rem;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .scroll-custom::-webkit-scrollbar { width: 6px; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        input, textarea, select {
+            background: white !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 4px;
+            padding: 0.3rem 0.5rem !important;
+        }
+        
+        .courtroom-grid {
+            display: grid;
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+            gap: 0.375rem; 
+            height: 100%;
+        }
+        
+        .layout-sixpack .courtroom-grid {
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+        }
+
+        /* Strike Card Formatting */
+        .strike-card {
+            padding: 0.6rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 900;
+            margin-bottom: 0.4rem;
+            cursor: pointer;
+            color: white;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: filter 0.1s;
+        }
+        .strike-card:hover { filter: brightness(1.1); }
+        .strike-people { background-color: #2563eb; }
+        .strike-defense { background-color: #dc2626; }
+
+        .case-input {
+            background: rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            color: white !important;
+            font-size: 10px !important;
+            text-transform: uppercase;
+            font-weight: bold;
+            padding: 2px 8px !important;
+            width: 120px;
+        }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <header class="bg-slate-900 text-white px-6 py-2 flex justify-between items-center shadow-md shrink-0">
+        <div class="flex items-center gap-6">
+            <h1 class="text-lg font-black tracking-tighter text-blue-400">SPEAKTHETRUTH</h1>
+            <div class="flex items-center gap-2 border-l border-slate-700 pl-4">
+                <input type="text" id="case-name" oninput="save()" class="case-input w-24" placeholder="CASE NAME">
+                <input type="text" id="case-num" oninput="save()" class="case-input w-32" placeholder="CASE NUMBER">
+                <input type="text" id="case-date" oninput="save()" class="case-input w-24" placeholder="TRIAL DATE">
+            </div>
+            <div class="flex bg-slate-800 rounded-lg p-1 gap-1">
+                <button onclick="setLayout('box')" id="btn-box" class="px-5 py-1 rounded-md text-xs font-bold transition">BOX (1-12)</button>
+                <button onclick="setLayout('sixpack')" id="btn-sixpack" class="px-5 py-1 rounded-md text-xs font-bold transition">SIX-PACK (1-18)</button>
+            </div>
+            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-widest bg-slate-800 px-3 py-1 rounded border border-slate-700">Hold <span class="text-white">Shift</span> to Zoom</div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="exportData()" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded border border-slate-600 transition uppercase font-bold">Export</button>
+            <button onclick="document.getElementById('import-file').click()" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded border border-slate-600 transition uppercase font-bold">Import</button>
+            <input type="file" id="import-file" class="hidden" onchange="importData(event)" accept=".json">
+            <button onclick="resetData()" class="text-[10px] bg-red-900/40 hover:bg-red-800 px-3 py-1 rounded border border-red-800/50 transition uppercase font-bold">Reset</button>
+        </div>
+    </header>
+
+    <main id="main-container" class="flex-1 flex overflow-hidden">
+        <div id="courtroom-container" class="flex-1 p-2 overflow-hidden flex flex-col bg-slate-100">
+            <div id="courtroom-grid-wrapper" class="courtroom-grid"></div>
+        </div>
+
+        <aside class="w-80 bg-white border-l border-slate-200 flex flex-col shadow-xl shrink-0">
+            <div class="p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2 shrink-0">
+                <textarea id="roster-input" oninput="save()" class="w-full h-16 p-2 text-xs border rounded resize-none scroll-custom" placeholder="1 - Smith..."></textarea>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="processRoster()" class="bg-blue-600 text-white text-[10px] font-black py-2 rounded hover:bg-blue-700 transition uppercase">Load Pool</button>
+                    <button onclick="autofillSeats()" class="bg-slate-800 text-white text-[10px] font-black py-2 rounded hover:bg-slate-700 transition uppercase">Autofill</button>
+                </div>
+            </div>
+            
+            <div id="pool-list" class="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5 scroll-custom bg-white border-b border-slate-100 min-h-[100px]"></div>
+            
+            <div class="p-3 bg-slate-50 flex-none flex flex-col overflow-hidden min-h-[230px] max-h-[60%]">
+                <h3 class="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1.5 shrink-0">Peremptory Strikes</h3>
+                <div id="struck-juror-list" class="overflow-y-auto scroll-custom"></div>
+            </div>
+            
+            <div class="p-3 bg-slate-900 text-white shrink-0">
+                <div class="flex justify-between items-center text-center">
+                    <div class="flex-1 border-r border-slate-700">
+                        <div id="tally-people" class="text-xl font-black text-blue-400">0</div>
+                        <div class="text-[8px] uppercase font-bold text-slate-400">People</div>
+                    </div>
+                    <div class="flex-1">
+                        <div id="tally-defense" class="text-xl font-black text-red-400">0</div>
+                        <div class="text-[8px] uppercase font-bold text-slate-400">Defense</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Edit Modal -->
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/80 hidden items-center justify-center z-[2000] p-2 backdrop-blur-md">
+        <div id="edit-modal" class="modal-post-it gap-3">
+            <div class="flex justify-between items-start gap-4 shrink-0">
+                <div style="width: 38ch;">
+                    <textarea id="edit-household" class="w-full text-base h-36 resize-none scroll-custom font-bold" placeholder="Household & Context..."></textarea>
+                </div>
+                <div class="flex-1 text-center">
+                    <div class="flex items-center justify-center gap-1 border-b-2 border-slate-300 focus-within:border-blue-500 py-1">
+                        <input id="edit-name" type="text" class="text-4xl font-black text-center bg-transparent border-none p-0 focus:ring-0 w-auto min-w-[40%]" placeholder="Name">
+                        <div class="flex items-center text-4xl font-black text-slate-400">
+                            <span>[</span>
+                            <input id="edit-id-input" type="text" class="text-4xl font-black text-center bg-transparent border-none p-0 focus:ring-0 w-16 text-slate-400" placeholder="0">
+                            <span>]</span>
+                        </div>
+                    </div>
+                    <div id="edit-ids" class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-[0.3em]">Location</div>
+                </div>
+                <div class="w-52 flex flex-col gap-2">
+                    <input id="edit-city" type="text" class="w-full text-xl font-black text-right text-blue-800" placeholder="Area">
+                    <select id="edit-excuse-type" class="w-full text-sm font-black text-red-600">
+                        <option value="none">In Box</option>
+                        <option value="cause">Cause</option>
+                        <option value="people">People Strike</option>
+                        <option value="defense">Defense Strike</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col min-h-0">
+                <div class="flex-1 flex gap-3 min-h-0">
+                    <textarea id="edit-notes" class="flex-1 text-2xl font-medium leading-relaxed resize-none scroll-custom p-4 bg-white shadow-inner" placeholder="Observations 1..."></textarea>
+                    <textarea id="edit-notes2" class="flex-1 text-2xl font-medium leading-relaxed resize-none scroll-custom p-4 bg-white shadow-inner" placeholder="Observations 2..."></textarea>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 pt-3 grid grid-cols-12 gap-3 shrink-0 items-end">
+                <div class="col-span-5">
+                    <label class="block text-[11px] font-black text-slate-500 uppercase mb-1">Jury Experience</label>
+                    <div class="grid grid-cols-12 gap-2 items-center">
+                        <select id="exp-type" class="col-span-3 text-xs font-bold">
+                            <option value="">(None)</option>
+                            <option value="Civ">Civil (V)</option>
+                            <option value="Crim">Criminal (M)</option>
+                        </select>
+                        <div class="col-span-3 flex gap-3 justify-center">
+                            <label class="text-[9px] font-black flex flex-col items-center cursor-pointer">
+                                <input type="checkbox" id="exp-verdict" class="w-4 h-4"> <span>VERDICT</span>
+                            </label>
+                            <label class="text-[9px] font-black flex flex-col items-center cursor-pointer">
+                                <input type="checkbox" id="exp-fore" class="w-4 h-4"> <span>FP</span>
+                            </label>
+                        </div>
+                        <input type="text" id="exp-note" class="col-span-6 text-xs font-bold" placeholder="Experience Details...">
+                    </div>
+                </div>
+
+                <div class="col-span-7 flex items-end gap-4 border-l border-slate-200 pl-4">
+                    <div class="flex flex-col gap-1">
+                        <select id="edit-rating" class="text-xl font-black w-16 h-10 bg-white">
+                            <option value="">--</option>
+                            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                            <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                            <option value="10">10</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <select id="edit-personality" class="text-sm font-bold w-36 h-10 bg-white">
+                            <option value="">(None)</option>
+                            <option value="Powerful">Powerful (P)</option>
+                            <option value="Popular">Popular (P)</option>
+                            <option value="Peaceful">Peaceful (P)</option>
+                            <option value="Perfect">Perfect (P)</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-1 h-10">
+                        <button onclick="toggleRankInModal('mountain')" id="btn-mtn" class="w-12 border-2 border-slate-300 rounded text-xl bg-white transition hover:bg-slate-50 flex items-center justify-center">⛰️</button>
+                        <button onclick="toggleRankInModal('bird')" id="btn-bird" class="w-12 border-2 border-slate-300 rounded text-xl bg-white transition hover:bg-slate-50 flex items-center justify-center">🐦</button>
+                    </div>
+                    <button onclick="closeModal()" class="bg-blue-600 text-white px-6 py-2.5 rounded font-black hover:bg-blue-700 transition shadow-lg uppercase text-xs ml-auto">Save & Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLayout = 'box';
+        let jurors = [];
+        let editingJurorId = null;
+        let hoverTimer = null;
+        let lastHoveredElement = null;
+        let isShiftPressed = false;
+
+        const KEY_DATA = 'jury_pro_v37_data';
+        const KEY_ROSTER = 'jury_pro_v37_roster';
+        const KEY_LAYOUT = 'jury_pro_v37_layout';
+
+        function getOrdinal(n) {
+            const s = ["th", "st", "nd", "rd"];
+            const v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        }
+
+        /* --- Text Formatting Engine --- */
+        function formatRichText(text) {
+            if (!text) return '';
+            return text.split('\n').map(line => {
+                let processedLine = line;
+                let isRed = false;
+
+                if (processedLine.startsWith('*')) {
+                    isRed = true;
+                    processedLine = processedLine.substring(1);
+                }
+
+                // Underline words starting with -
+                processedLine = processedLine.split(' ').map(word => {
+                    if (word.startsWith('-')) {
+                        return `<span class="under-word">${word.substring(1)}</span>`;
+                    }
+                    return word;
+                }).join(' ');
+
+                return `<div class="${isRed ? 'star-line' : ''}">${processedLine}</div>`;
+            }).join('');
+        }
+
+        function formatNotesCentered(n1, n2) {
+            const combined = [n1, n2].filter(x => x).join('\n');
+            return formatRichText(combined);
+        }
+
+        /* --- Global Modifier Key Handling --- */
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Shift') {
+                isShiftPressed = true;
+                if (lastHoveredElement) expandCard(lastHoveredElement);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift') {
+                isShiftPressed = false;
+                shrinkAll();
+            }
+        });
+
+        function handleHover(element, enter) {
+            if (enter) {
+                lastHoveredElement = element;
+                if (isShiftPressed) expandCard(element);
+            } else {
+                lastHoveredElement = null;
+                shrinkCard(element);
+            }
+        }
+
+        function expandCard(element) {
+            if (hoverTimer) clearTimeout(hoverTimer);
+            element.classList.add('is-expanded');
+            const parent = element.parentElement;
+            if (parent) parent.style.zIndex = "1000"; 
+            
+            hoverTimer = setTimeout(() => {
+                shrinkCard(element);
+            }, 5000); 
+        }
+
+        function shrinkCard(element) {
+            element.classList.remove('is-expanded');
+            const parent = element.parentElement;
+            if (parent) parent.style.zIndex = "1";
+        }
+
+        function shrinkAll() {
+            document.querySelectorAll('.post-it').forEach(card => shrinkCard(card));
+        }
+
+        function init() {
+            const d = localStorage.getItem(KEY_DATA);
+            const r = localStorage.getItem(KEY_ROSTER);
+            const l = localStorage.getItem(KEY_LAYOUT);
+            if (r) document.getElementById('roster-input').value = r;
+            if (d) {
+                const parsed = JSON.parse(d);
+                jurors = parsed.jurors || parsed;
+                if (parsed.case) {
+                    document.getElementById('case-name').value = parsed.case.name || '';
+                    document.getElementById('case-num').value = parsed.case.num || '';
+                    document.getElementById('case-date').value = parsed.case.date || '';
+                }
+            }
+            if (l) setLayout(l);
+            renderAll();
+        }
+
+        function save() {
+            const dataToSave = {
+                jurors: jurors,
+                case: {
+                    name: document.getElementById('case-name').value,
+                    num: document.getElementById('case-num').value,
+                    date: document.getElementById('case-date').value
+                }
+            };
+            localStorage.setItem(KEY_DATA, JSON.stringify(dataToSave));
+            localStorage.setItem(KEY_ROSTER, document.getElementById('roster-input').value);
+            localStorage.setItem(KEY_LAYOUT, currentLayout);
+        }
+
+        function setLayout(mode) {
+            currentLayout = mode;
+            const container = document.getElementById('courtroom-container');
+            if (mode === 'sixpack') container.classList.add('layout-sixpack');
+            else container.classList.remove('layout-sixpack');
+            document.getElementById('btn-box').className = `px-5 py-1 rounded-md text-xs font-bold transition ${mode === 'box' ? 'bg-blue-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`;
+            document.getElementById('btn-sixpack').className = `px-5 py-1 rounded-md text-xs font-bold transition ${mode === 'sixpack' ? 'bg-blue-600 text-white' : 'hover:bg-slate-700 text-slate-400'}`;
+            save(); renderAll();
+        }
+
+        function dragStart(ev) {
+            ev.dataTransfer.setData("jurorId", ev.target.dataset.jurorId);
+            ev.dataTransfer.setData("fromSeat", ev.target.dataset.seat || "");
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            const fromSeatRaw = ev.dataTransfer.getData("fromSeat");
+            const jurorId = ev.dataTransfer.getData("jurorId");
+            const targetSeat = parseInt(ev.currentTarget.id.split('-')[1]);
+
+            if (!fromSeatRaw || fromSeatRaw === "") {
+                const movingJuror = jurors.find(j => j.id == jurorId);
+                const existing = jurors.find(j => j.seat === targetSeat && j.status === 'Seated');
+                if (existing) { existing.seat = null; existing.status = 'Pool'; }
+                if (movingJuror) { movingJuror.seat = targetSeat; movingJuror.status = 'Seated'; }
+            } else {
+                const fromSeat = parseInt(fromSeatRaw);
+                if (fromSeat !== targetSeat) {
+                    const jurorA = jurors.find(j => j.seat === fromSeat && j.status === 'Seated');
+                    const jurorB = jurors.find(j => j.seat === targetSeat && j.status === 'Seated');
+                    if (jurorA) jurorA.seat = targetSeat;
+                    if (jurorB) jurorB.seat = fromSeat;
+                }
+            }
+            save(); renderAll();
+        }
+
+        function emptySeatClick(seatNumber) {
+            let targetJuror = jurors.filter(j => j.status === 'Pool').sort((a,b) => (parseInt(a.id)||0) - (parseInt(b.id)||0))[0];
+            if (!targetJuror) {
+                const nextId = jurors.length > 0 ? Math.max(...jurors.map(j => parseInt(j.id) || 0)) + 1 : 1;
+                targetJuror = {
+                    id: nextId.toString(), name: '', city: '', household: '', status: 'Seated', seat: seatNumber,
+                    rank: 'neutral', personality: '', notes: '', notes2: '', selectionRating: '',
+                    experience: [{ type: '', verdict: false, foreperson: false, note: '' }], excuseType: 'none'
+                };
+                jurors.push(targetJuror);
+            } else {
+                targetJuror.seat = seatNumber;
+                targetJuror.status = 'Seated';
+            }
+            save(); renderAll(); openModal(targetJuror.id);
+        }
+
+        function openModal(id) {
+            const j = jurors.find(jur => jur.id == id);
+            if (!j) return;
+            editingJurorId = id;
+            document.getElementById('edit-name').value = j.name;
+            document.getElementById('edit-id-input').value = j.id;
+            document.getElementById('edit-city').value = j.city;
+            document.getElementById('edit-household').value = j.household;
+            document.getElementById('edit-notes').value = j.notes || '';
+            document.getElementById('edit-notes2').value = j.notes2 || '';
+            document.getElementById('edit-rating').value = j.selectionRating || '';
+            document.getElementById('edit-personality').value = j.personality || '';
+            document.getElementById('edit-excuse-type').value = j.excuseType || 'none';
+            document.getElementById('edit-ids').innerText = `Seat Location ${j.seat}`;
+            
+            const data = (j.experience && j.experience[0]) || {};
+            document.getElementById('exp-type').value = data.type || '';
+            document.getElementById('exp-verdict').checked = data.verdict || false;
+            document.getElementById('exp-fore').checked = data.foreperson || false;
+            document.getElementById('exp-note').value = data.note || '';
+            updateModalRankUI(j.rank);
+            document.getElementById('modal-overlay').classList.replace('hidden', 'flex');
+            setTimeout(() => document.getElementById('edit-name').focus(), 10);
+        }
+
+        function closeModal() {
+            const j = jurors.find(jur => jur.id == editingJurorId);
+            if (!j) return;
+            j.name = document.getElementById('edit-name').value;
+            j.id = document.getElementById('edit-id-input').value;
+            j.city = document.getElementById('edit-city').value;
+            j.household = document.getElementById('edit-household').value;
+            j.notes = document.getElementById('edit-notes').value;
+            j.notes2 = document.getElementById('edit-notes2').value;
+            j.selectionRating = document.getElementById('edit-rating').value;
+            j.personality = document.getElementById('edit-personality').value;
+            const type = document.getElementById('edit-excuse-type').value;
+            j.experience = [{
+                type: document.getElementById('exp-type').value,
+                verdict: document.getElementById('exp-verdict').checked,
+                foreperson: document.getElementById('exp-fore').checked,
+                note: document.getElementById('exp-note').value
+            }];
+            if (type !== 'none') { j.status = 'Struck'; j.seat = null; j.strikeTime = Date.now(); }
+            j.excuseType = type;
+            save(); renderAll();
+            document.getElementById('modal-overlay').classList.replace('flex', 'hidden');
+        }
+
+        function toggleRankInModal(rank) {
+            const j = jurors.find(jur => jur.id == editingJurorId);
+            j.rank = (j.rank === rank) ? 'neutral' : rank;
+            updateModalRankUI(j.rank);
+        }
+
+        function updateModalRankUI(rank) {
+            ['btn-mtn', 'btn-bird'].forEach(id => {
+                const btn = document.getElementById(id);
+                const isActive = (id === 'btn-mtn' && rank === 'mountain') || (id === 'btn-bird' && rank === 'bird');
+                btn.style.borderWidth = isActive ? '4px' : '2px';
+                btn.style.borderColor = isActive ? '#1e293b' : '#cbd5e1';
+                btn.style.backgroundColor = isActive ? '#f1f5f9' : 'white';
+            });
+        }
+
+        function processRoster() {
+            const text = document.getElementById('roster-input').value;
+            const lines = text.split('\n');
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                const match = line.match(/^(\d+)\s*[-:]?\s*(.*)$/);
+                if (match) {
+                    const id = match[1].trim(), name = match[2].trim();
+                    const existing = jurors.find(j => j.id == id);
+                    if (existing) existing.name = name;
+                    else jurors.push({ id, name, city: '', household: '', status: 'Pool', seat: null, rank: 'neutral', personality: '', notes: '', notes2: '', selectionRating: '', experience: [{ type: '', verdict: false, foreperson: false, note: '' }], excuseType: 'none' });
+                }
+            });
+            save(); renderAll();
+        }
+
+        function autofillSeats() {
+            const limit = currentLayout === 'sixpack' ? 18 : 12;
+            const available = jurors.filter(j => j.status === 'Pool').sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+            let idx = 0;
+            for (let s = 1; s <= limit; s++) {
+                if (idx >= available.length) break;
+                if (!jurors.find(j => j.seat === s)) { const j = available[idx++]; j.seat = s; j.status = 'Seated'; j.excuseType = 'none'; }
+            }
+            save(); renderAll();
+        }
+
+        function renderAll() {
+            const wrapper = document.getElementById('courtroom-grid-wrapper');
+            wrapper.innerHTML = '';
+            const rowsCount = currentLayout === 'sixpack' ? 3 : 2;
+            for (let r = 0; r < rowsCount; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'grid grid-cols-6 gap-1.5 h-full';
+                for (let c = 1; c <= 6; c++) {
+                    const seatNum = (r * 6) + c;
+                    const zone = document.createElement('div');
+                    zone.id = `seat-${seatNum}`;
+                    zone.className = `seat-drop-zone`;
+                    zone.ondragover = e => e.preventDefault();
+                    zone.ondrop = drop;
+                    const juror = jurors.find(j => j.seat === seatNum && j.status === 'Seated');
+                    if (juror) {
+                        const horiz = c % 2 !== 0 ? 'quad-left' : 'quad-right';
+                        const vert = r === 0 ? 'quad-top' : 'quad-bottom';
+                        zone.innerHTML = createCardHtml(juror, horiz, vert);
+                    } else {
+                        zone.innerText = seatNum;
+                        zone.onclick = () => emptySeatClick(seatNum);
+                    }
+                    rowDiv.appendChild(zone);
+                }
+                wrapper.appendChild(rowDiv);
+            }
+            const poolList = document.getElementById('pool-list');
+            const poolJurors = jurors.filter(j => j.status === 'Pool').sort((a,b) => (parseInt(a.id)||0) - (parseInt(b.id)||0));
+            poolList.innerHTML = poolJurors.map(j => `<div draggable="true" ondragstart="dragStart(event)" data-juror-id="${j.id}" onclick="openModal('${j.id}')" class="bg-white border p-2 rounded text-xs font-black cursor-grab shadow-sm active:cursor-grabbing hover:border-blue-400 transition-colors">${j.name || '...'} [${j.id}]</div>`).join('');
+
+            const struck = jurors.filter(j => j.status === 'Struck' && j.excuseType !== 'cause').sort((a,b) => (a.strikeTime||0) - (b.strikeTime||0));
+            let pCnt = 0, dCnt = 0;
+            document.getElementById('struck-juror-list').innerHTML = struck.map(j => {
+                const isPeople = j.excuseType === 'people';
+                const kickNum = isPeople ? ++pCnt : ++dCnt;
+                return `<div class="strike-card ${isPeople ? 'strike-people' : 'strike-defense'}" onclick="openModal('${j.id}')">${kickNum}: ${j.name || '...'} [${j.id}]</div>`;
+            }).join('');
+            
+            const strikeList = document.getElementById('struck-juror-list');
+            strikeList.scrollTop = strikeList.scrollHeight;
+
+            document.getElementById('tally-people').innerText = jurors.filter(j => j.excuseType === 'people').length;
+            document.getElementById('tally-defense').innerText = jurors.filter(j => j.excuseType === 'defense').length;
+        }
+
+        function createCardHtml(j, horiz, vert) {
+            const exp = j.experience && j.experience[0];
+            let expString = '';
+            if (exp && exp.type) {
+                const typeCode = exp.type === 'Crim' ? 'M' : 'V';
+                const notePart = exp.note ? `:${exp.note}` : '';
+                const fullText = typeCode + notePart;
+                expString = exp.verdict ? `<span class="underline">${fullText}</span>` : fullText;
+            }
+            const scoreTxt = (j.selectionRating || j.personality) ? `${j.selectionRating || ''}${j.selectionRating && j.personality ? ':' : ''}${j.personality || ''}` : '';
+
+            return `
+                <div draggable="true" ondragstart="dragStart(event)" onmouseenter="handleHover(this, true)" onmouseleave="handleHover(this, false)"
+                     data-juror-id="${j.id}" data-seat="${j.seat}" onclick="event.stopPropagation(); openModal('${j.id}')" 
+                     class="post-it ${horiz} ${vert} ${j.rank !== 'neutral' ? 'selected-rank' : ''}">
+                    <div class="text-center border-b border-yellow-600/10 pb-0.5 mb-1 shrink-0">
+                         <div class="font-black text-slate-800 text-[14px] uppercase truncate">${j.name || '...'} [${j.id}]</div>
+                    </div>
+                    <div class="minimal-only flex-1 flex items-center justify-center">
+                        <div class="text-slate-900 font-bold text-center leading-tight">${formatNotesCentered(j.notes, j.notes2)}</div>
+                    </div>
+                    <div class="expanded-only">
+                        <div class="flex justify-between items-start gap-1 mb-2 border-b border-slate-300 pb-2">
+                            <div class="text-[13px] font-bold text-slate-700 leading-tight whitespace-pre-wrap flex-1">${formatRichText(j.household)}</div>
+                            <div class="text-[14px] font-black text-blue-900">${j.city || ''}</div>
+                        </div>
+                        <div class="expanded-notes text-slate-900 font-bold text-center italic mt-2 whitespace-pre-wrap">${formatNotesCentered(j.notes, j.notes2)}</div>
+                    </div>
+                    <div class="flex justify-between items-center mt-auto shrink-0 px-1 pt-1 gap-2">
+                        <div class="flex-1 flex items-center gap-2 overflow-hidden whitespace-nowrap">
+                            <div class="font-black text-[13px] text-slate-800 uppercase">${expString}</div>
+                            <div class="flex-1 text-center font-black text-[13px] text-slate-800 uppercase">${scoreTxt}</div>
+                        </div>
+                        <div class="w-8 text-right text-2xl leading-none">${j.rank === 'mountain' ? '⛰️' : (j.rank === 'bird' ? '🐦' : '')}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function exportData() {
+            const data = { jurors, case: { name: document.getElementById('case-name').value, num: document.getElementById('case-num').value, date: document.getElementById('case-date').value }, roster: document.getElementById('roster-input').value, layout: currentLayout, ts: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `jury-backup.json`; a.click();
+        }
+
+        function importData(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ex) {
+                try {
+                    const data = JSON.parse(ex.target.result);
+                    if (data.jurors) {
+                        jurors = data.jurors;
+                        document.getElementById('roster-input').value = data.roster;
+                        if (data.case) {
+                            document.getElementById('case-name').value = data.case.name || '';
+                            document.getElementById('case-num').value = data.case.num || '';
+                            document.getElementById('case-date').value = data.case.date || '';
+                        }
+                        setLayout(data.layout);
+                        renderAll();
+                    }
+                } catch (err) { alert("Invalid file"); }
+            }; reader.readAsText(file);
+        }
+
+        function resetData() { if (confirm("Reset All Data?")) { jurors = []; document.getElementById('case-name').value = ''; document.getElementById('case-num').value = ''; document.getElementById('case-date').value = ''; document.getElementById('roster-input').value = ''; save(); renderAll(); } }
+        window.onload = init;
+    </script>
+</body>
+</html>
