@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SpeaktheTruth</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="styles.css">
     <script src="state.js" defer></script>
+    <script src="domain.js" defer></script>
     <script src="storage.js" defer></script>
     <script src="render.js" defer></script>
+    <script src="actions.js" defer></script>
     <script src="modal.js" defer></script>
     <script src="roster.js" defer></script>
     <script src="dragdrop.js" defer></script>
@@ -27,13 +30,45 @@
                 <button onclick="setLayout('box')" id="btn-box" class="px-5 py-1 rounded-md text-xs font-bold transition">BOX (1-12)</button>
                 <button onclick="setLayout('sixpack')" id="btn-sixpack" class="px-5 py-1 rounded-md text-xs font-bold transition">SIX-PACK (1-18)</button>
             </div>
-            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-widest bg-slate-800 px-3 py-1 rounded border border-slate-700">Hold <span class="text-white">Shift</span> to Zoom</div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
             <button onclick="exportData()" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded border border-slate-600 transition uppercase font-bold">Export</button>
             <button onclick="document.getElementById('import-file').click()" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded border border-slate-600 transition uppercase font-bold">Import</button>
             <input type="file" id="import-file" class="hidden" onchange="importData(event)" accept=".json">
             <button onclick="resetData()" class="text-[10px] bg-red-900/40 hover:bg-red-800 px-3 py-1 rounded border border-red-800/50 transition uppercase font-bold">Reset</button>
+            <div class="prefs-wrap">
+                <button id="prefs-toggle" type="button" class="prefs-toggle" aria-label="Preferences" aria-expanded="false">
+                    <i data-lucide="settings-2" class="prefs-toggle-icon"></i>
+                </button>
+                <div id="prefs-panel" class="prefs-panel hidden">
+                    <div class="prefs-title">Preferences</div>
+                    <label class="prefs-field">
+                        <span class="prefs-label">Overview Font</span>
+                        <select id="prefs-overview-font" class="prefs-select">
+                            <option value="small">Small</option>
+                            <option value="medium">Default</option>
+                            <option value="large">Large</option>
+                            <option value="xlarge">XL</option>
+                        </select>
+                    </label>
+                    <label class="prefs-field">
+                        <span class="prefs-label">Theme</span>
+                        <select id="prefs-theme" class="prefs-select">
+                            <option value="default">Default</option>
+                            <option value="dark">Dark Mode</option>
+                        </select>
+                    </label>
+                    <div class="prefs-markup-guide">
+                        <div class="prefs-label">Markup</div>
+                        <div class="markup-guide markup-guide-compact" aria-hidden="true">
+                            <span class="markup-guide-chip markup-guide-alert"><span class="markup-guide-token">!!</span> alert</span>
+                            <span class="markup-guide-chip markup-guide-question"><span class="markup-guide-token">??</span> question</span>
+                            <span class="markup-guide-chip markup-guide-star"><span class="markup-guide-token">*</span> red</span>
+                            <span class="markup-guide-chip markup-guide-quote"><span class="markup-guide-token">" "</span> blue</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -42,23 +77,30 @@
             <div id="courtroom-grid-wrapper" class="courtroom-grid"></div>
         </div>
 
-        <aside class="w-80 bg-white border-l border-slate-200 flex flex-col shadow-xl shrink-0">
-            <div class="p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2 shrink-0">
-                <textarea id="roster-input" oninput="save()" class="w-full h-16 p-2 text-xs border rounded resize-none scroll-custom" placeholder="1 - Smith..."></textarea>
+        <aside id="sidebar" class="sidebar bg-white border-l border-slate-200 flex flex-col shadow-xl shrink-0">
+            <div class="sidebar-peek">
+                <span id="sidebar-pin-indicator" class="sidebar-pin-indicator hidden" aria-hidden="true">
+                    <i data-lucide="pin" class="sidebar-pin-icon"></i>
+                </span>
+                <span class="sidebar-peek-label">POOL</span>
+            </div>
+            <div class="sidebar-content p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2 shrink-0">
+                <textarea id="roster-input" oninput="save()" class="roster-input w-full h-16 p-2 text-xs border rounded resize-none scroll-custom" placeholder="1 - Smith..."></textarea>
                 <div class="grid grid-cols-2 gap-2">
                     <button onclick="processRoster()" class="bg-blue-600 text-white text-[10px] font-black py-2 rounded hover:bg-blue-700 transition uppercase">Load Pool</button>
                     <button onclick="autofillSeats()" class="bg-slate-800 text-white text-[10px] font-black py-2 rounded hover:bg-slate-700 transition uppercase">Autofill</button>
                 </div>
+                <div id="roster-feedback" class="min-h-[1rem] text-[10px] font-bold uppercase tracking-wide text-slate-400"></div>
             </div>
 
-            <div id="pool-list" class="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5 scroll-custom bg-white border-b border-slate-100 min-h-[100px]"></div>
+            <div id="pool-list" class="sidebar-content flex-1 overflow-y-auto p-3 flex flex-col gap-1.5 scroll-custom bg-white border-b border-slate-100 min-h-[100px]"></div>
 
-            <div class="p-3 bg-slate-50 flex-none flex flex-col overflow-hidden min-h-[230px] max-h-[60%]">
+            <div class="sidebar-content p-3 bg-slate-50 flex-none flex flex-col overflow-hidden min-h-[230px] max-h-[60%]">
                 <h3 class="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1.5 shrink-0">Peremptory Strikes</h3>
                 <div id="struck-juror-list" class="overflow-y-auto scroll-custom"></div>
             </div>
 
-            <div class="p-3 bg-slate-900 text-white shrink-0">
+            <div class="sidebar-content p-3 bg-slate-900 text-white shrink-0">
                 <div class="flex justify-between items-center text-center">
                     <div class="flex-1 border-r border-slate-700">
                         <div id="tally-people" class="text-xl font-black text-blue-400">0</div>
@@ -77,22 +119,22 @@
         <div id="edit-modal" class="modal-post-it gap-3">
             <div class="flex justify-between items-start gap-4 shrink-0">
                 <div style="width: 38ch;">
-                    <textarea id="edit-household" class="w-full text-base h-36 resize-none scroll-custom font-bold" placeholder="Household & Context..."></textarea>
+                    <textarea id="edit-household" tabindex="2" class="w-full text-base h-36 resize-none scroll-custom font-bold" placeholder="Household & Context..."></textarea>
                 </div>
                 <div class="flex-1 text-center">
-                    <div class="flex items-center justify-center gap-1 border-b-2 border-slate-300 focus-within:border-blue-500 py-1">
-                        <input id="edit-name" type="text" class="text-4xl font-black text-center bg-transparent border-none p-0 focus:ring-0 w-auto min-w-[40%]" placeholder="Name">
+                    <div class="flex items-center justify-center gap-1 border-b-2 border-slate-300 focus-within:border-blue-500 py-2">
+                        <input id="edit-name" tabindex="-1" type="text" class="modal-title-input text-4xl font-black text-center bg-transparent border-none p-0 focus:ring-0 w-auto min-w-[40%]" placeholder="Name">
                         <div class="flex items-center text-4xl font-black text-slate-400">
                             <span>[</span>
-                            <input id="edit-id-input" type="text" class="text-4xl font-black text-center bg-transparent border-none p-0 focus:ring-0 w-16 text-slate-400" placeholder="0">
+                            <input id="edit-id-input" tabindex="-1" type="text" class="modal-title-input text-4xl font-black text-center bg-transparent border-none p-0 focus:ring-0 w-16 text-slate-400" placeholder="0">
                             <span>]</span>
                         </div>
                     </div>
                     <div id="edit-ids" class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-[0.3em]">Location</div>
                 </div>
-                <div class="w-52 flex flex-col gap-2">
-                    <input id="edit-city" type="text" class="w-full text-xl font-black text-right text-blue-800" placeholder="Area">
-                    <select id="edit-excuse-type" class="w-full text-sm font-black text-red-600">
+                <div class="modal-side-fields">
+                    <input id="edit-city" tabindex="1" type="text" class="modal-side-input modal-side-input-city" placeholder="Area - Time">
+                    <select id="edit-excuse-type" tabindex="11" class="modal-side-input modal-side-input-status">
                         <option value="none">In Box</option>
                         <option value="cause">Cause</option>
                         <option value="people">People Strike</option>
@@ -101,58 +143,80 @@
                 </div>
             </div>
 
+            <div class="markup-guide" aria-hidden="true">
+                <span class="markup-guide-chip markup-guide-alert"><span class="markup-guide-token">!!</span> alert line</span>
+                <span class="markup-guide-chip markup-guide-question"><span class="markup-guide-token">??</span> question line</span>
+                <span class="markup-guide-chip markup-guide-star"><span class="markup-guide-token">*</span> red line</span>
+                <span class="markup-guide-chip markup-guide-quote"><span class="markup-guide-token">"quote"</span> blue text</span>
+            </div>
+
             <div class="flex-1 flex flex-col min-h-0">
                 <div class="flex-1 flex gap-3 min-h-0">
-                    <textarea id="edit-notes" class="flex-1 text-2xl font-medium leading-relaxed resize-none scroll-custom p-4 bg-white shadow-inner" placeholder="Observations 1..."></textarea>
-                    <textarea id="edit-notes2" class="flex-1 text-2xl font-medium leading-relaxed resize-none scroll-custom p-4 bg-white shadow-inner" placeholder="Observations 2..."></textarea>
+                    <div class="modal-note-panel flex-1 min-h-0">
+                        <div class="modal-note-panel-label">Overview Notes</div>
+                        <textarea id="edit-notes" tabindex="7" class="modal-note-panel-textarea text-2xl font-medium leading-relaxed resize-none scroll-custom p-4 bg-white shadow-inner" placeholder="Overview Notes..."></textarea>
+                    </div>
+                    <div class="modal-note-panel flex-1 min-h-0">
+                        <div class="modal-note-panel-label">Notes</div>
+                        <textarea id="edit-notes2" tabindex="8" class="modal-note-panel-textarea text-2xl font-medium leading-relaxed resize-none scroll-custom p-4 bg-white shadow-inner" placeholder="Notes..."></textarea>
+                    </div>
                 </div>
             </div>
 
             <div class="border-t border-slate-200 pt-3 grid grid-cols-12 gap-3 shrink-0 items-end">
                 <div class="col-span-5">
-                    <label class="block text-[11px] font-black text-slate-500 uppercase mb-1">Jury Experience</label>
-                    <div class="grid grid-cols-12 gap-2 items-center">
-                        <select id="exp-type" class="col-span-3 text-xs font-bold">
+                    <div class="modal-meta-panel">
+                        <div class="modal-meta-label">Jury Experience</div>
+                        <div class="modal-exp-grid">
+                            <select id="exp-type" tabindex="3" class="modal-meta-select">
                             <option value="">(None)</option>
                             <option value="Civ">Civil (V)</option>
                             <option value="Crim">Criminal (M)</option>
-                        </select>
-                        <div class="col-span-3 flex gap-3 justify-center">
-                            <label class="text-[9px] font-black flex flex-col items-center cursor-pointer">
-                                <input type="checkbox" id="exp-verdict" class="w-4 h-4"> <span>VERDICT</span>
-                            </label>
-                            <label class="text-[9px] font-black flex flex-col items-center cursor-pointer">
-                                <input type="checkbox" id="exp-fore" class="w-4 h-4"> <span>FP</span>
-                            </label>
+                            </select>
+                            <div class="modal-exp-flags">
+                                <label class="modal-flag">
+                                    <input type="checkbox" id="exp-verdict" tabindex="5" class="modal-flag-checkbox">
+                                    <span>Verdict</span>
+                                </label>
+                                <label class="modal-flag">
+                                    <input type="checkbox" id="exp-fore" tabindex="6" class="modal-flag-checkbox">
+                                    <span>FP</span>
+                                </label>
+                            </div>
+                            <input type="text" id="exp-note" tabindex="4" class="modal-meta-input" placeholder="Experience Details...">
                         </div>
-                        <input type="text" id="exp-note" class="col-span-6 text-xs font-bold" placeholder="Experience Details...">
                     </div>
                 </div>
 
-                <div class="col-span-7 flex items-end gap-4 border-l border-slate-200 pl-4">
-                    <div class="flex flex-col gap-1">
-                        <select id="edit-rating" class="text-xl font-black w-16 h-10 bg-white">
+                <div class="col-span-7 border-l border-slate-200 pl-4">
+                    <div class="modal-meta-panel">
+                        <div class="modal-meta-label">Rating & Quick Rank</div>
+                        <div class="modal-rating-grid">
+                            <select id="edit-rating" tabindex="9" class="modal-meta-select modal-rating-select">
                             <option value="">--</option>
                             <option value="1">1</option><option value="2">2</option><option value="3">3</option>
                             <option value="4">4</option><option value="5">5</option><option value="6">6</option>
                             <option value="7">7</option><option value="8">8</option><option value="9">9</option>
                             <option value="10">10</option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-1">
-                        <select id="edit-personality" class="text-sm font-bold w-36 h-10 bg-white">
+                            </select>
+                            <select id="edit-personality" tabindex="10" class="modal-meta-select modal-personality-select">
                             <option value="">(None)</option>
                             <option value="Powerful">Powerful (P)</option>
                             <option value="Popular">Popular (P)</option>
                             <option value="Peaceful">Peaceful (P)</option>
                             <option value="Perfect">Perfect (P)</option>
-                        </select>
+                            </select>
+                            <div class="modal-rank-buttons">
+                                <button onclick="toggleRankInModal('mountain')" id="btn-mtn" tabindex="-1" class="modal-rank-button" aria-label="Mountain rank">
+                                    <i data-lucide="mountain" class="modal-rank-icon"></i>
+                                </button>
+                                <button onclick="toggleRankInModal('bird')" id="btn-bird" tabindex="-1" class="modal-rank-button" aria-label="Bird rank">
+                                    <i data-lucide="bird" class="modal-rank-icon"></i>
+                                </button>
+                            </div>
+                            <button onclick="closeModal()" tabindex="12" class="bg-blue-600 text-white px-6 py-2.5 rounded font-black hover:bg-blue-700 transition shadow-lg uppercase text-xs ml-auto">Save & Close</button>
+                        </div>
                     </div>
-                    <div class="flex gap-1 h-10">
-                        <button onclick="toggleRankInModal('mountain')" id="btn-mtn" class="w-12 border-2 border-slate-300 rounded text-xl bg-white transition hover:bg-slate-50 flex items-center justify-center">&#9968;</button>
-                        <button onclick="toggleRankInModal('bird')" id="btn-bird" class="w-12 border-2 border-slate-300 rounded text-xl bg-white transition hover:bg-slate-50 flex items-center justify-center">&#128038;</button>
-                    </div>
-                    <button onclick="closeModal()" class="bg-blue-600 text-white px-6 py-2.5 rounded font-black hover:bg-blue-700 transition shadow-lg uppercase text-xs ml-auto">Save & Close</button>
                 </div>
             </div>
         </div>

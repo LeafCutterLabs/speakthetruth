@@ -1,82 +1,37 @@
 (function () {
     const App = window.JuryApp = window.JuryApp || {};
 
+    App.setRosterFeedback = function setRosterFeedback(message, tone) {
+        const feedback = document.getElementById("roster-feedback");
+        if (!feedback) {
+            return;
+        }
+
+        feedback.innerText = message || "";
+        feedback.className = "min-h-[1rem] text-[10px] font-bold uppercase tracking-wide " + (
+            tone === "warn" ? "text-amber-600" :
+            tone === "ok" ? "text-blue-600" :
+            "text-slate-400"
+        );
+    };
+
     App.processRoster = function processRoster() {
-        const text = document.getElementById("roster-input").value;
-        const lines = text.split("\n");
+        const summary = App.loadRosterEntries(document.getElementById("roster-input").value);
 
-        lines.forEach(function (line) {
-            if (!line.trim()) {
-                return;
-            }
-
-            const match = line.match(/^(\d+)\s*[-:]?\s*(.*)$/);
-            if (!match) {
-                return;
-            }
-
-            const id = match[1].trim();
-            const name = match[2].trim();
-            const existing = App.getJurorById(id);
-
-            if (existing) {
-                existing.name = name;
-                return;
-            }
-
-            App.state.jurors.push(App.createJuror({
-                id: id,
-                name: name
-            }));
-        });
-
-        App.save();
-        App.renderAll();
+        document.getElementById("roster-input").value = "";
+        App.setRosterInputExpanded(false);
+        App.setRosterFeedback(
+            "Loaded " + summary.loaded + "  Updated " + summary.updated + "  Skipped " + summary.skipped,
+            summary.skipped > 0 ? "warn" : "ok"
+        );
     };
 
     App.autofillSeats = function autofillSeats() {
-        const limit = App.getSeatLimit(App.state.currentLayout);
-        const available = App.getPoolJurors();
-        let index = 0;
-
-        for (let seat = 1; seat <= limit; seat += 1) {
-            if (index >= available.length) {
-                break;
-            }
-
-            if (!App.getSeatedJuror(seat)) {
-                const juror = available[index];
-                index += 1;
-                juror.seat = seat;
-                juror.status = "Seated";
-                juror.excuseType = "none";
-                juror.strikeTime = null;
-            }
-        }
-
-        App.save();
-        App.renderAll();
+        App.autofillSeatsAction();
     };
 
     App.emptySeatClick = function emptySeatClick(seatNumber) {
-        let targetJuror = App.getPoolJurors()[0];
-
-        if (!targetJuror) {
-            targetJuror = App.createJuror({
-                id: App.getNextJurorId(),
-                status: "Seated",
-                seat: seatNumber
-            });
-            App.state.jurors.push(targetJuror);
-        } else {
-            targetJuror.seat = seatNumber;
-            targetJuror.status = "Seated";
-            targetJuror.excuseType = "none";
-            targetJuror.strikeTime = null;
-        }
-
-        App.save();
-        App.renderAll();
+        const targetJuror = App.fillEmptySeatAction(seatNumber);
         App.openModal(targetJuror.id);
     };
 

@@ -4,11 +4,13 @@
     const KEY_DATA = "jury_pro_v37_data";
     const KEY_ROSTER = "jury_pro_v37_roster";
     const KEY_LAYOUT = "jury_pro_v37_layout";
+    const KEY_PREFERENCES = "jury_pro_v37_preferences";
 
     App.storageKeys = {
         data: KEY_DATA,
         roster: KEY_ROSTER,
-        layout: KEY_LAYOUT
+        layout: KEY_LAYOUT,
+        preferences: KEY_PREFERENCES
     };
 
     App.readCaseFields = function readCaseFields() {
@@ -50,12 +52,14 @@
         localStorage.setItem(KEY_DATA, JSON.stringify(payload));
         localStorage.setItem(KEY_ROSTER, document.getElementById("roster-input").value);
         localStorage.setItem(KEY_LAYOUT, App.state.currentLayout);
+        localStorage.setItem(KEY_PREFERENCES, JSON.stringify(App.state.preferences));
     };
 
     App.loadAppData = function loadAppData() {
         const rawData = localStorage.getItem(KEY_DATA);
         const rawRoster = localStorage.getItem(KEY_ROSTER);
         const rawLayout = localStorage.getItem(KEY_LAYOUT);
+        const rawPreferences = localStorage.getItem(KEY_PREFERENCES);
 
         if (rawRoster) {
             document.getElementById("roster-input").value = rawRoster;
@@ -70,6 +74,14 @@
 
         if (rawLayout) {
             App.state.currentLayout = rawLayout;
+        }
+
+        if (rawPreferences) {
+            try {
+                App.state.preferences = Object.assign({}, App.state.preferences, JSON.parse(rawPreferences));
+            } catch (_error) {
+                App.state.preferences = Object.assign({}, App.state.preferences);
+            }
         }
     };
 
@@ -104,6 +116,9 @@
                 App.state.jurors = normalized.jurors;
                 document.getElementById("roster-input").value = normalized.roster;
                 App.writeCaseFields(normalized.case);
+                if (App.setRosterFeedback) {
+                    App.setRosterFeedback("", "neutral");
+                }
                 App.setLayout(normalized.layout);
                 App.renderAll();
             } catch (error) {
@@ -122,6 +137,9 @@
         App.state.jurors = [];
         App.writeCaseFields({});
         document.getElementById("roster-input").value = "";
+        if (App.setRosterFeedback) {
+            App.setRosterFeedback("", "neutral");
+        }
         App.save();
         App.renderAll();
     };
