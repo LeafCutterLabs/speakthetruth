@@ -6,7 +6,8 @@
         jurors: [],
         preferences: {
             overviewFontSize: "medium",
-            theme: "default"
+            theme: "default",
+            boxSeatOrigin: "left"
         },
         editingJurorId: null,
         hoverTimer: null,

@@ -29,7 +29,6 @@
 
             if (nextLine.startsWith("*")) {
                 isRed = true;
-                nextLine = nextLine.substring(1);
             }
 
             const processedLine = nextLine.split(/(".*?")/).map(function (segment) {
@@ -212,12 +211,16 @@
         wrapper.innerHTML = "";
 
         const rowsCount = App.state.currentLayout === "sixpack" ? 3 : 2;
+        const startsRight = App.normalizeBoxSeatOriginPreference(App.state.preferences.boxSeatOrigin) === "right";
+
         for (let row = 0; row < rowsCount; row += 1) {
             const rowDiv = document.createElement("div");
             rowDiv.className = "grid grid-cols-6 gap-1.5 h-full";
+            const rowRunsRightToLeft = row % 2 === 0 ? startsRight : !startsRight;
 
             for (let column = 1; column <= 6; column += 1) {
-                const seatNum = (row * 6) + column;
+                const seatColumn = rowRunsRightToLeft ? (7 - column) : column;
+                const seatNum = (row * 6) + seatColumn;
                 const zone = document.createElement("div");
                 zone.id = "seat-" + seatNum;
                 zone.className = "seat-drop-zone";

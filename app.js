@@ -92,13 +92,19 @@
         return "medium";
     };
 
+    App.normalizeBoxSeatOriginPreference = function normalizeBoxSeatOriginPreference(value) {
+        return value === "right" ? "right" : "left";
+    };
+
     App.applyPreferences = function applyPreferences() {
         const theme = App.state.preferences.theme || "default";
         const overviewFontSize = App.normalizeOverviewFontPreference(App.state.preferences.overviewFontSize);
+        const boxSeatOrigin = App.normalizeBoxSeatOriginPreference(App.state.preferences.boxSeatOrigin);
         const body = document.body;
         const courtroom = document.getElementById("courtroom-container");
 
         App.state.preferences.overviewFontSize = overviewFontSize;
+        App.state.preferences.boxSeatOrigin = boxSeatOrigin;
 
         if (body) {
             body.classList.toggle("app-theme-dark", theme === "dark");
@@ -106,15 +112,20 @@
 
         if (courtroom) {
             courtroom.dataset.overviewFontSize = overviewFontSize;
+            courtroom.dataset.boxSeatOrigin = boxSeatOrigin;
         }
 
         const themeSelect = document.getElementById("prefs-theme");
         const fontSelect = document.getElementById("prefs-overview-font");
+        const boxOriginSelect = document.getElementById("prefs-box-origin");
         if (themeSelect) {
             themeSelect.value = theme;
         }
         if (fontSelect) {
             fontSelect.value = overviewFontSize;
+        }
+        if (boxOriginSelect) {
+            boxOriginSelect.value = boxSeatOrigin;
         }
     };
 
@@ -194,6 +205,7 @@
         const prefsPanel = document.getElementById("prefs-panel");
         const prefsFont = document.getElementById("prefs-overview-font");
         const prefsTheme = document.getElementById("prefs-theme");
+        const prefsBoxOrigin = document.getElementById("prefs-box-origin");
         if (prefsToggle && prefsPanel) {
             prefsToggle.addEventListener("click", function (event) {
                 event.stopPropagation();
@@ -217,6 +229,12 @@
         if (prefsTheme) {
             prefsTheme.addEventListener("change", function () {
                 App.setPreference("theme", prefsTheme.value);
+            });
+        }
+
+        if (prefsBoxOrigin) {
+            prefsBoxOrigin.addEventListener("change", function () {
+                App.setPreference("boxSeatOrigin", prefsBoxOrigin.value);
             });
         }
 
